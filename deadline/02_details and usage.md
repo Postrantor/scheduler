@@ -3,9 +3,8 @@ tip: translate by baidu@2023-09-05 16:03:39
 url: https://lwn.net/Articles/743946/
 title: Deadline scheduler part 2 — details and usage [LWN.net]
 date: 2023-09-05 16:00:38
-tag: 
+tag:
 summary: Linux’s deadline scheduler is a global early deadline first scheduler for sporadic tasks with constra......
-> 摘要：Linux的截止日期调度程序是
 ---
 
 Linux’s deadline scheduler is a global early deadline first scheduler for sporadic tasks with constrained deadlines. These terms were defined in [the first part of this series](https://lwn.net/Articles/743740/). In this installment, the details of the Linux deadline scheduler and how it can be used will be examined.
@@ -14,7 +13,7 @@ Linux’s deadline scheduler is a global early deadline first scheduler for spor
 
 The deadline scheduler prioritizes the tasks according to the task’s job deadline: the earliest absolute deadline first. For a system with _M_ processors, the _M_ earliest deadline jobs will be selected to run on the _M_ processors.
 
-> 截止日期调度器根据任务的作业截止日期对任务进行优先级排序：首先是最早的绝对截止日期。对于具有*M*处理器的系统，将选择在*M*处理器上运行的*M*最早截止日期作业。
+> 截止日期调度器根据任务的作业截止日期对任务进行优先级排序：首先是最早的绝对截止日期。对于具有 _M_ 处理器的系统，将选择在 _M_ 处理器上运行的 _M_ 最早截止日期作业。
 
 The Linux deadline scheduler also implements the constant bandwidth server (CBS) algorithm, which is a resource-reservation protocol. CBS is used to guarantee that each task will receive its full run time during every period. At every activation of a task, the CBS replenishes the task’s run time. As the job runs, it consumes that time; if the task runs out, it will be throttled and descheduled. In this case, the task will be able to run only after the next replenishment at the beginning of the next period. Therefore, CBS is used to both guarantee each task’s CPU time based on its timing requirements and to prevent a misbehaving task from running for more than its run time and causing problems to other jobs.
 
@@ -28,7 +27,9 @@ However, it is worth noting that this acceptance test is necessary, but _not_ su
 
 > 然而，值得注意的是，对于多处理器系统上的全局调度，这种验收测试是必要的，但并不充分。正如 Dhall 的效果（在本系列的第一部分中描述）所示，即使有可用的 CPU 时间，全局截止日期调度器接受任务也无法调度任务集。因此，当前的验收测试不能保证一旦被接受，任务将能够在截止日期之前使用所有分配的运行时间。当前验收任务所能保证的最好的是有界延迟，这对软实时系统来说是一个很好的保证。如果用户希望保证所有任务都能在截止日期前完成，则用户必须使用分区方法或使用必要且充分的验收测试，定义如下：
 
+```
 Σ(WCETi / Pi) <= M - (M - 1) x Umax
+```
 
 Or, expressed in words: the sum of the run time/period of each task should be less than or equal to the number of processors, minus the largest utilization multiplied by the number of processors minus one. It turns out that, the bigger Umax is, the less load the system is able to handle.
 
@@ -44,12 +45,10 @@ For example, consider a system with eight CPUs. One big task has a utilization c
 
 1.  Enter in the cpuset directory and create two cpusets:
 
-    ```
-        # cd /sys/fs/cgroup/cpuset/
-        # mkdir cluster
-        # mkdir partition
-
-
+    ```shell
+    # cd /sys/fs/cgroup/cpuset/
+    # mkdir cluster
+    # mkdir partition
     ```
 
 2.  Disable load balancing in the root cpuset to create two new root domains in the CPU sets:
@@ -58,8 +57,6 @@ For example, consider a system with eight CPUs. One big task has a utilization c
 
     ```
         # echo 0 > cpuset.sched_load_balance
-
-
     ```
 
 3.  Enter the directory for the cluster cpuset, set the CPUs available to 1-7, the memory node the set should run in (in this case the system is not NUMA, so it is always node zero), and set the cpuset to the exclusive mode.
@@ -67,40 +64,32 @@ For example, consider a system with eight CPUs. One big task has a utilization c
 > 3.输入集群 cpuset 的目录，将可用的 CPU 设置为 1-7，设置应该在其中运行的内存节点（在这种情况下，系统不是 NUMA，所以它总是节点零），并将 cpuset 设置为独占模式。
 
     ```
-        # cd cluster/
-        # echo 1-7 > cpuset.cpus
-        # echo 0 > cpuset.mems
-        # echo 1 > cpuset.cpu_exclusive
-
-
+    # cd cluster/
+    # echo 1-7 > cpuset.cpus
+    # echo 0 > cpuset.mems
+    # echo 1 > cpuset.cpu_exclusive
     ```
 
 4.  Move all tasks to this CPU set
 
     ```
-        # ps -eLo lwp | while read thread; do echo $thread > tasks ; done
-
-
+    # ps -eLo lwp | while read thread; do echo $thread > tasks ; done
     ```
 
 5.  Then it is possible to start deadline tasks in this cpuset.
 6.  Configure the partition cpuset:
 
     ```
-        # cd ../partition/
-        # echo 1 > cpuset.cpu_exclusive
-        # echo 0 > cpuset.mems
-        # echo 0 > cpuset.cpus
-
-
+    # cd ../partition/
+    # echo 1 > cpuset.cpu_exclusive
+    # echo 0 > cpuset.mems
+    # echo 0 > cpuset.cpus
     ```
 
 7.  Finally move the shell to the partition cpuset.
 
     ```
-        # echo $$ > tasks
-
-
+    # echo $$ > tasks
     ```
 
 8.  The final step is to run the deadline workload.
@@ -119,32 +108,30 @@ In the aperiodic case, the best thing the user can do is to estimate how much CP
 
 > 在非周期性的情况下，用户能做的最好的事情就是估计任务在给定的时间段内需要多少 CPU 时间来实现预期结果。例如，如果一个任务每秒需要 200 毫秒来完成其工作，则运行时间将为 200000000ns，周期将为 1000000000ns。[sched_setattr（）](http://man7.org/linux/man-pages/man2/sched_setattr.2.html)系统调用用于设置截止日期调度参数。以下代码是如何在应用程序中设置上述参数的简单示例：
 
-```
-    int main (int argc, char **argv)
-    {
-        int ret;
-        int flags = 0;
-        struct sched_attr attr;
+```c
+int main (int argc, char **argv)
+{
+    int ret;
+    int flags = 0;
+    struct sched_attr attr;
 
-        memset(&attr, 0, sizeof(attr));
-        attr.size = sizeof(attr);
+    memset(&attr, 0, sizeof(attr));
+    attr.size = sizeof(attr);
 
-        /* This creates a 200ms / 1s reservation */
-        attr.sched_policy   = SCHED_DEADLINE;
-        attr.sched_runtime  =  200000000;
-        attr.sched_deadline = attr.sched_period = 1000000000;
+    /* This creates a 200ms / 1s reservation */
+    attr.sched_policy   = SCHED_DEADLINE;
+    attr.sched_runtime  =  200000000;
+    attr.sched_deadline = attr.sched_period = 1000000000;
 
-        ret = sched_setattr(0, &attr, flags);
-        if (ret < 0) {
-            perror("sched_setattr failed to set the priorities");
-            exit(-1);
-        }
+    ret = sched_setattr(0, &attr, flags);
+    if (ret < 0) {
+        perror("sched_setattr failed to set the priorities");
+        exit(-1);
+    }
 
-        do_the_computation_without_blocking();
-        exit(0);
+    do_the_computation_without_blocking();
+    exit(0);
 }
-
-
 ```
 
 In the aperiodic case, the task does not need to know when a period starts, and so the task just needs to run, knowing that the scheduler will throttle the task after it has consumed the specified run time.
@@ -159,17 +146,15 @@ Code working in this mode would look like the example above, except that the act
 
 > 在这种模式下工作的代码看起来像上面的例子，只是实际计算看起来像：
 
-```
-        for(;;) {
-            do_the_computation();
-            /*
-	     * Notify the scheduler the end of the computation
-             * This syscall will block until the next replenishment
-             */
-	    sched_yield();
-        }
-
-
+```c
+for(;;) {
+    do_the_computation();
+    /*
+    * Notify the scheduler the end of the computation
+        * This syscall will block until the next replenishment
+        */
+    sched_yield();
+}
 ```
 
 It is worth noting that the computation must finish within the given run time. If the task does not finish, it will be throttled by the CBS algorithm.
@@ -180,18 +165,16 @@ The most common realtime use case for the realtime task is to wait for an extern
 
 > 实时任务最常见的实时用例是等待外部事件发生。在这种情况下，任务在阻塞系统调用中等待。该系统调用将唤醒实时任务，每次激活之间至少有一个最小间隔。也就是说，这是一项零星的任务。一旦激活，任务将进行计算并提供响应。一旦任务提供了输出，该任务就会通过阻塞等待下一个事件而进入睡眠状态。
 
-```
-        for(;;) {
-            /*
-	     * Block in a blocking system call waiting for a data
-             * to be processed.
-             */
-            process_the_data();
-            produce_the_result()
-	    block_waiting_for_the_next_event();
-        }
-
-
+```c
+for(;;) {
+    /*
+    * Block in a blocking system call waiting for a data
+        * to be processed.
+        */
+    process_the_data();
+    produce_the_result()
+    block_waiting_for_the_next_event();
+}
 ```
 
 #### Conclusion
@@ -217,7 +200,3 @@ Acknowledgment: this series of articles was reviewed and improved with comments 
 > 鸣谢：本系列文章由 Clark Williams、Beth Uptagrafft、Arnaldo Carvalho de Melo、Luis Claudio R.Gonçalves、Oleksandr Natalenko、Jiri Kastner 和 Tommaso Cucinotta 进行了评论和改进。
 
 <table><tbody><tr><th colspan="2">Index entries for this article</th></tr><tr><td><a href="https://lwn.net/Kernel/Index">Kernel</a></td><td><a href="https://lwn.net/Kernel/Index#Realtime-Deadline_scheduling">Realtime/Deadline scheduling</a></td></tr><tr><td><a href="https://lwn.net/Kernel/Index">Kernel</a></td><td><a href="https://lwn.net/Kernel/Index#Scheduler-Deadline_scheduling">Scheduler/Deadline scheduling</a></td></tr><tr><td><a href="https://lwn.net/Archives/GuestIndex/">GuestArticles</a></td><td><a href="https://lwn.net/Archives/GuestIndex/#Bristot_de_Oliveira_Daniel">Bristot de Oliveira, Daniel</a></td></tr></tbody></table>
-
-([Log in](https://lwn.net/Login/?target=/Articles/743946/) to post comments)
-
-> （[登录](https://lwn.net/Login/?target=/Articles/743946/)发布评论）
